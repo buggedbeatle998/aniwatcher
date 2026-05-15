@@ -19,10 +19,11 @@ get_schedule() {
         "$animeschedule/api/v3/timetables/sub?year=$this_year&week=$this_week" \
         | sed 's|"title"|\n|g' | \
     while read -r anime; do
-        # echo $anime
+        #echo $anime
         if [ $today != $(echo $anime | sed -E 's|.*"episodeDate":"([^T]*)T.*|\1|1') ]; then
             continue
         fi
+        ani_route=$(echo $anime | sed -nE 's|^:"[^"]*"*,"route":"([^"]*)".*|\1|p')
         ep_time=$(echo $anime \
             | sed -E 's|.*"episodeDate":"[^T]*T([^Z]*):[^:Z]*Z.*|\1|1')
         if [[ ! -z $last_time && $ep_time = $last_time ]]; then
@@ -34,7 +35,10 @@ get_schedule() {
                 fi) \
                 $ep_time
         fi
-        echo -e "\033[1mTitle:\033[0m \033]8;;https://unix.stackexchange.com/questions/284476/terminal-create-hyperlinks\e\\$(echo $anime \
+        mal_link=$(curl -s -H "Authorization: Bearer $anisch_token" \
+            $animeschedule/api/v3/anime/$ani_route \
+            | sed -nE 's|.*"websites":\{.*"mal":"([^"]*)".*|\1|p')
+        echo -e "\033[1mTitle:\033[0m \033]8;;https://$mal_link\e\\$(echo $anime \
             | sed -nE 's|^:"([^"]*)",.*|\1|p')\033]8;;\033\\"
         english_title=$(echo $anime \
             | sed -nE 's|.*,"english":"([^"]*)",.*|\1|p')
@@ -52,7 +56,52 @@ get_schedule() {
     exit 0
 }
 
+recover_secrets() {
+    secrets=$(echo .secrets)
+    cli_id=$(cat $secrets | sed -nE 's|^([^,]*),.*$|\1|p')
+    cli_secret=$(cat  $secrets | sed -nE 's|^[^,]*,(.*)$|\1|p')
+}
+
+get_mal_token() {
+    challenger=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 128)
+    
+    : >$tmp_redir
+    #-d $wwwdir && rm -rf $www_dir
+    mkdir -p $www_dir
+    printf "<html>\n<body>\n<h1>Verification Succeeded!</h1>\n<p>Close this browser tab and return to the shell.</p>\n</body>\n</html>\n" >"${www_dir}"/index.html
+    trap "rm -rf $www_dir" EXIT
+    python3 -m http.server -d $www_dir $redir_port >$tmp_redir 2>&1 &
+    wserver_pid="$!"
+    firefox "$mal_auth/authorize?response_type=code&client_id=$cli_id&code_challenge=$challenger" >/dev/null 2>&1
+    printf "Please verify in Firefox\n"
+    (
+        sleep 120
+        echo "timeout reached" >&2
+        exit 1
+    ) &
+    read -r _
+    kill "$!" >/dev/null 2>&1 || true
+    unset _
+    kill $wserver_pid
+    echo $(grep GET $tmp_redir)
+}
+
 printf "\033[0m\n"
+
+work_dir="${XDG_STATE_HOME:-$HOME/.local/state}/aniwatcher"
+www_dir="${work_dir}/tmp-www"
+tmp_redir="${work_dir}/redirectoutput"
+redir_port="8080"
+cli_id=""
+cli_secret=""
+challenger=""
+mal_auth=""
+mal_token=""
+mal_auth="https://myanimelist.net/v1/oauth2"
+mal_api="https://api.myanimelist.net/v2"
+
+#recover_secrets
+#get_mal_token
 
 dep_ch "fzf" || true
 get_schedule $(echo \
