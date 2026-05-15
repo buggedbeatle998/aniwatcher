@@ -6,30 +6,6 @@ dep_ch() {
     done
 }
 
-launcher() {
-    [ -z "$1" ] && set -- "+m" "$2"
-    fzf "$1" --with-nth=2.. --reverse --cycle --bind 'load:pos(8)' --prompt "$2"
-}
-
-nth() {
-    stdin=$(cat -)
-    [ -z "$stdin" ] && return 1
-    line_count="$(printf "%s\n" "$stdin" | wc -l | tr -d "[:space:]")"
-    [ "$line_count" -eq 1 ] && printf "%s" "$stdin" | cut -f2,3 && return 0
-    prompt="$1"
-    multi_flag=""
-    [ $# -ne 1 ] && shift && multi_flag="$1"
-    line=$(printf "%s" "$stdin" | cut -f1,3 | tr '\t' ' ' | launcher "$multi_flag" "$prompt" | cut -d " " -f 1)
-    line_start=$(printf "%s" "$line" | head -n1)
-    line_end=$(printf "%s" "$line" | tail -n1)
-    [ -n "$line" ] || exit 1
-    if [ "$line_start" = "$line_end" ]; then
-        printf "%s" "$stdin" | grep -E '^'"${line}"'($|[[:space:]])' | cut -f2,3 || exit 1
-    else
-        printf "%s" "$stdin" | sed -n '/^'"${line_start}"'$/,/^'"${line_end}$"'/p' || exit 1
-    fi
-}
-
 get_schedule() {
     today=$(date --date="-1 week + $1 days" '+%Y-%m-%d')
     this_year=$(date --date="-1 week + $1 days" '+%Y')
