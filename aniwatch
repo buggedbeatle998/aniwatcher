@@ -19,11 +19,10 @@ get_schedule() {
         "$animeschedule/api/v3/timetables/sub?year=$this_year&week=$this_week" \
         | sed 's|"title"|\n|g' | \
     while read -r anime; do
-        #echo $anime
         if [ $today != $(echo $anime | sed -E 's|.*"episodeDate":"([^T]*)T.*|\1|1') ]; then
             continue
         fi
-        ani_route=$(echo $anime | sed -nE 's|^:"[^"]*"*,"route":"([^"]*)".*|\1|p')
+        ani_route=$(echo $anime | sed -nE 's/^:"([^"]|\\")*"*,"route":"([^"]*)".*/\2/p')
         ep_time=$(echo $anime \
             | sed -E 's|.*"episodeDate":"[^T]*T([^Z]*):[^:Z]*Z.*|\1|1')
         if [[ ! -z $last_time && $ep_time = $last_time ]]; then
@@ -39,9 +38,11 @@ get_schedule() {
             $animeschedule/api/v3/anime/$ani_route \
             | sed -nE 's|.*"websites":\{.*"mal":"([^"]*)".*|\1|p')
         echo -e "\033[1mTitle:\033[0m \033]8;;https://$mal_link\e\\$(echo $anime \
-            | sed -nE 's|^:"([^"]*)",.*|\1|p')\033]8;;\033\\"
+            | sed -nE 's/^:"(([^"]|\\")*)",.*/\1/p' \
+            | sed -E 's|\\"|"|g')\033]8;;\033\\"
         english_title=$(echo $anime \
-            | sed -nE 's|.*,"english":"([^"]*)",.*|\1|p')
+            | sed -nE 's/.*,"english":"(([^"]|\\")*)",.*/\1/p' \
+            | sed -E 's|\\"|"|g')
         if [[ ! -z $english_title ]]; then
             echo -e "\033[1mEnglish Title:\033[0m $english_title"
         fi
@@ -86,7 +87,7 @@ get_mal_token() {
     echo $(grep GET $tmp_redir)
 }
 
-printf "\033[0m\n"
+printf "\033[0m\033[1A\033[K\n"
 
 work_dir="${XDG_STATE_HOME:-$HOME/.local/state}/aniwatcher"
 www_dir="${work_dir}/tmp-www"
@@ -114,3 +115,4 @@ get_schedule $(echo \
     done)" \
     | fzf --with-nth=2.. --accept-nth=1 --reverse --cycle --bind 'load:pos(8)' --prompt "Select a day: ")
 
+printf "\033[0m\033[1A\033[K"
