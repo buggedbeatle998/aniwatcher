@@ -6,6 +6,11 @@ dep_ch() {
     done
 }
 
+die() {
+    printf "\33[2K\r\033[1;31m%s\033[0m\n" "$*" >&2
+    exit 1
+}
+
 get_schedule() {
     today=$(date --date="-1 week + $1 days" '+%Y-%m-%d')
     this_year=$(date --date="-1 week + $1 days" '+%Y')
@@ -37,7 +42,7 @@ get_schedule() {
         mal_link=$(curl -s -H "Authorization: Bearer $anisch_token" \
             $animeschedule/api/v3/anime/$ani_route \
             | sed -nE 's|.*"websites":\{.*"mal":"([^"]*)".*|\1|p')
-        echo -e "\033[1mTitle:\033[0m \033]8;;https://$mal_link\e\\$(echo $anime \
+        echo -e "\033[1mTitle:\033[0m \033]8;;https://$mal_link\e\\\\$(echo $anime \
             | sed -nE 's/^:"(([^"]|\\")*)",.*/\1/p' \
             | sed -E 's|\\"|"|g')\033]8;;\033\\"
         english_title=$(echo $anime \
@@ -83,8 +88,16 @@ get_mal_token() {
     read -r _
     kill "$!" >/dev/null 2>&1 || true
     unset _
+    fuser -k $redir_port/tcp
     kill $wserver_pid
-    echo $(grep GET $tmp_redir)
+    check_www_srv=$(grep -i "Address already in use" $tmpredir)
+    if [ X"$check_www_srv" != X ]; then
+        die "$redirectPort port was already in use"
+    fi
+    #auth_code=$(grep GET $tmpredir | sed -nE 's|.*\?code=([^ ]*) HTTP.*|\1|p')
+    #echo $auth_code
+    #auth_code_wc="$(echo $auth_code | wc -w)"
+    #echo $auth_code_wc
 }
 
 printf "\033[0m\033[1A\033[K\n"
@@ -103,6 +116,7 @@ mal_api="https://api.myanimelist.net/v2"
 
 #recover_secrets
 #get_mal_token
+#exit 1
 
 dep_ch "fzf" || true
 get_schedule $(echo \
